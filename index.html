@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Test D2-R</title>
+<style>
+:root{--bg:#f6f5f1;--fg:#1c1c1a;--mut:#6b6a64;--card:#fff;--bd:#d9d7cf;--acc:#2f5fd0;--ok:#1f8a4c;--bad:#c0392b;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17181b;--fg:#ecebe6;--mut:#a3a199;--card:#222328;--bd:#3a3b42;--acc:#7da2ff;--ok:#4cc784;--bad:#ff7a6b}}
+:root[data-theme="dark"]{--bg:#17181b;--fg:#ecebe6;--mut:#a3a199;--card:#222328;--bd:#3a3b42;--acc:#7da2ff;--ok:#4cc784;--bad:#ff7a6b}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5}
+main{max-width:1100px;margin:0 auto;padding:16px}
+h1{font-size:1.5rem;margin:.2em 0}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:18px;margin:14px 0}
+button.b{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 20px;font-size:1rem;cursor:pointer}
+button.b.s{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+.mut{color:var(--mut)}
+.demo{display:flex;gap:10px;margin:10px 0;flex-wrap:wrap}
+.hud{position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);padding:8px 0;z-index:5}
+.bar{height:8px;background:var(--bd);border-radius:4px;overflow:hidden}
+.bar>i{display:block;height:100%;width:100%;background:var(--acc)}
+.hudrow{display:flex;justify-content:space-between;font-size:.9rem;margin-bottom:4px}
+.sheet{overflow-x:auto;border:1px solid var(--bd);border-radius:10px;background:var(--card)}
+.line{display:flex;gap:2px;padding:6px 8px;min-width:max-content;opacity:.45;border-bottom:1px solid var(--bd)}
+.line.act{opacity:1;background:color-mix(in srgb,var(--acc) 12%,transparent)}
+.line.done{opacity:.35}
+.ch{width:22px;height:40px;position:relative;display:flex;align-items:center;justify-content:center;
+font:600 24px/1 Georgia,serif;cursor:default;user-select:none;border-radius:4px}
+.act .ch{cursor:pointer}
+.ch .t,.ch .u{position:absolute;left:0;right:0;display:flex;justify-content:center;gap:3px}
+.ch .t{top:2px}.ch .u{bottom:2px}
+.ch .t i,.ch .u i{width:2px;height:7px;background:currentColor;display:block}
+.ch.x::after{content:"";position:absolute;left:1px;right:1px;top:50%;height:3px;background:var(--bad);transform:rotate(-35deg)}
+.ch.x{background:color-mix(in srgb,var(--bad) 14%,transparent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.k{border:1px solid var(--bd);border-radius:10px;padding:10px}
+.k b{display:block;font-size:1.5rem}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+td,th{border-bottom:1px solid var(--bd);padding:4px 8px;text-align:right}
+th:first-child,td:first-child{text-align:left}
+.hide{display:none}
+</style>
+</head>
+<body>
+<main>
+<h1>Test D2-R — attention sélective</h1>
+
+<section id="intro" class="card">
+<p><b>Consigne :</b> barrez (en cliquant / touchant) uniquement les <b>« d » accompagnés de deux traits au total</b> (deux au-dessus, deux en dessous, ou un au-dessus et un en dessous).</p>
+<p>Exemples :</p>
+<div class="demo" id="demo"></div>
+<ul class="mut">
+<li>6 lignes de 57 caractères, <b>sans limite de temps par ligne</b> : un chronomètre mesure votre durée. Cliquez sur « Ligne suivante » quand vous avez terminé une ligne.</li>
+<li>Travaillez de gauche à droite, vite et sans erreur. Vous ne pouvez pas revenir en arrière.</li>
+<li>Recliquer sur un caractère annule la barre.</li>
+</ul>
+<button class="b" id="start">Commencer</button>
+</section>
+
+<section id="test" class="hide">
+<div class="hud">
+<div class="hudrow" style="align-items:center;gap:10px"><span id="ln">Ligne 1 / 6</span><span id="tm" style="font:600 1.2rem ui-monospace,monospace">00:00.0</span><button class="b" id="next">Ligne suivante</button></div>
+</div>
+<div class="sheet" id="sheet"></div>
+</section>
+
+<section id="res" class="card hide"></section>
+</main>
+
+<script>
+const LINES=6,LEN=57;
+const $=id=>document.getElementById(id);
+const isTarget=c=>c.l==='d'&&c.t+c.u===2;
+
+function mk(c,cls){
+  const e=document.createElement('div');e.className='ch'+(cls?' '+cls:'');
+  const bars=n=>Array.from({length:n},()=>'<i></i>').join('');
+  e.innerHTML=`<span class="t">${bars(c.t)}</span>${c.l}<span class="u">${bars(c.u)}</span>`;
+  return e;
+}
+// démonstration
+[[ 'd',1,1,'cible'],['d',2,0,'cible'],['d',0,2,'cible'],['d',1,0,'non'],['d',2,1,'non'],['p',1,1,'non']].forEach(([l,t,u,k])=>{
+  const w=document.createElement('div');w.style.textAlign='center';
+  const e=mk({l,t,u});if(k==='cible')e.classList.add('x');
+  w.appendChild(e);const s=document.createElement('div');s.className='mut';s.style.fontSize='.75rem';s.textContent=k==='cible'?'à barrer':'ignorer';
+  w.appendChild(s);$('demo').appendChild(w);
+});
+
+function rnd(n){return Math.floor(Math.random()*n)}
+function genLine(){
+  const row=[];
+  for(let i=0;i<LEN;i++){
+    let c;
+    if(Math.random()<0.4){ // cible
+      const t=rnd(3);c={l:'d',t,u:2-t};
+      if(t===2)c={l:'d',t:2,u:0};
+    }else{
+      do{c={l:Math.random()<.5?'d':'p',t:rnd(3),u:rnd(3)}}while(isTarget(c));
+    }
+    row.push(c);
+  }
+  return row;
+}
+
+let data,marks,cur,tStart,raf,lineTimes,t0;
+function build(){
+  data=Array.from({length:LINES},genLine);
+  marks=data.map(()=>new Array(LEN).fill(false));
+  const sh=$('sheet');sh.innerHTML='';
+  data.forEach((row,li)=>{
+    const d=document.createElement('div');d.className='line';d.id='L'+li;
+    row.forEach((c,ci)=>{
+      const e=mk(c);
+      e.onclick=()=>{ if(li!==cur)return; marks[li][ci]=!marks[li][ci]; e.classList.toggle('x',marks[li][ci]); };
+      d.appendChild(e);
+    });
+    sh.appendChild(d);
+  });
+}
+function setLine(i){
+  cur=i;
+  document.querySelectorAll('.line').forEach((l,k)=>{l.classList.toggle('act',k===i);l.classList.toggle('done',k<i)});
+  $('ln').textContent=`Ligne ${i+1} / ${LINES}`;
+  $('next').textContent=i+1>=LINES?'Terminer':'Ligne suivante';
+  const el=$('L'+i);if(el)el.scrollIntoView({block:'center',behavior:'smooth'});
+  tStart=performance.now();
+}
+function fmt(s){const m=Math.floor(s/60);return String(m).padStart(2,'0')+':'+(s-m*60).toFixed(1).padStart(4,'0')}
+function tick(){
+  $('tm').textContent=fmt((performance.now()-t0)/1000);
+  raf=requestAnimationFrame(tick);
+}
+$('next').onclick=()=>{
+  lineTimes.push((performance.now()-tStart)/1000);
+  if(cur+1>=LINES)finish();else setLine(cur+1);
+};
+$('start').onclick=()=>{
+  $('intro').classList.add('hide');$('res').classList.add('hide');$('test').classList.remove('hide');
+  build();t0=performance.now();lineTimes=[];setLine(0);raf=requestAnimationFrame(tick);
+};
+function finish(){
+  cancelAnimationFrame(raf);
+  document.querySelectorAll('.line').forEach(l=>l.classList.remove('act'));
+  $('test').classList.add('hide');
+  let rows=[],TN=0,E1=0,E2=0,CP=0,T=0;
+  data.forEach((row,li)=>{
+    let last=-1;marks[li].forEach((m,i)=>{if(m)last=i});
+    const n=last+1;let o=0,c=0,k=0,tg=0;
+    for(let i=0;i<n;i++){
+      const t=isTarget(row[i]);if(t)tg++;
+      if(t&&marks[li][i])c++;
+      else if(t&&!marks[li][i])o++;
+      else if(!t&&marks[li][i])k++;
+    }
+    rows.push({n,o,k,c,t:lineTimes[li]||0});TN+=n;E1+=o;E2+=k;CP+=c-k;
+  });
+  const E=E1+E2,pct=TN?(E/TN*100):0,tot=lineTimes.reduce((a,b)=>a+b,0);
+  const ns=rows.map(r=>r.n),fr=Math.max(...ns)-Math.min(...ns);
+  const r=$('res');r.classList.remove('hide');
+  r.innerHTML=`<h2 style="margin-top:0">Résultats</h2>
+  <div class="grid">
+  <div class="k"><span class="mut">Vitesse de traitement (TN)</span><b>${TN}</b></div>
+  <div class="k"><span class="mut">Performance de concentration (CP)</span><b>${CP}</b></div>
+  <div class="k"><span class="mut">Erreurs d'omission (E1)</span><b>${E1}</b></div>
+  <div class="k"><span class="mut">Erreurs de commission (E2)</span><b>${E2}</b></div>
+  <div class="k"><span class="mut">% d'erreurs</span><b>${pct.toFixed(1)} %</b></div>
+  <div class="k"><span class="mut">Fluctuation (max − min)</span><b>${fr}</b></div>
+  <div class="k"><span class="mut">Temps total</span><b>${fmt(tot)}</b></div>
+  </div>
+  <p class="mut">TN = nombre d'éléments traités jusqu'à la dernière cible barrée de chaque ligne ; CP = cibles correctement barrées − erreurs de commission. Ce résultat est indicatif : l'interprétation officielle nécessite les étalonnages du test publié.</p>
+  <h3>Détail par ligne</h3>
+  <div style="overflow-x:auto"><table><tr><th>Ligne</th><th>Traités</th><th>Omissions</th><th>Commissions</th><th>Correctes</th><th>Durée</th></tr>
+  ${rows.map((x,i)=>`<tr><td>${i+1}</td><td>${x.n}</td><td>${x.o}</td><td>${x.k}</td><td>${x.c}</td><td>${fmt(x.t)}</td></tr>`).join('')}</table></div>
+  <p><button class="b" onclick="document.getElementById('start').click()">Recommencer</button></p>`;
+  r.scrollIntoView({behavior:'smooth'});
+}
+</script>
+</body>
+</html>
